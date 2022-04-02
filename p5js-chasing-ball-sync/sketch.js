@@ -93040,7 +93040,17 @@
 
 // Global parameters
 const EASING_SPEED = 0.05;
+const AI_SPEED = 0.25;
+const AI_ID = "AI_ID"
 const clientId = generateUUID();
+const aiId = AI_ID;
+
+let level = 2;
+const bots = [...Array(level).keys()].map(i => `${AI_ID}_${i}`)
+
+let aiDistance = 1000
+let targetId = aiId;
+
 
 // Current ball postion
 let pos = {
@@ -93054,22 +93064,36 @@ let target = {
   y: 0
 };
 
-let players = new Map()
+let players
 
 function setup() {
   createCanvas(480, 320);
   background(0);
   noStroke();
+  setAI();
 }
+
+function setAI() {
+  players = new Map(bots.map(b => {
+    randomPos()
+    return [b, {pos: pos, target: target}]
+  }))
+}
+
 
 function draw() {
   // background(220);
+  aiDistance = 1000
   let keys = Object.keys(Object.fromEntries(players))
+  console.log("Players: " + keys.length);
+  console.log("Bots: " + bots.length);
   if (!!keys.length) {
     keys.forEach(key => {
       let player = players.get(key)
-      if (Math.abs(player.pos.x - player.target.x + player.pos.y - player.target.y) > 2) {
-
+      let wayLeft = Math.sqrt(Math.pow(player.pos.x - player.target.x, 2) + Math.pow(player.pos.y - player.target.y, 2))
+      console.log("wayLeft: " + wayLeft);
+      if (wayLeft > 1) {
+        if (bots.includes(key)) console.log("aiDistance: " + aiDistance);
         fill(0, 25);
         rect(0, 0, width, height);
         fill(255);
@@ -93080,12 +93104,63 @@ function draw() {
       }
       circle(player.pos.x, player.pos.y, 20);
     })
+    bots.forEach(b => {
+      // calculates all the distances and find the closest target
+      console.log("calculates all the distances and find the closest target");
+      const allTargetsId = keys.filter(key => !bots.includes(key))
+      console.log("allTargetsId: " + allTargetsId);
+      if (allTargetsId.length > 0) {
+        const distances = allTargetsId.map(key => {
+          let player = players.get(key)
+          return {
+            distance: Math.sqrt(Math.pow(player.pos.x - players.get(b).pos.x, 2) + Math.pow(player.pos.y - players.get(b).pos.y, 2)),
+            id: key
+          }
+        }
+        )
+        console.log("distances: " + JSON.stringify(distances));
+        const closetTarget = distances.reduce((prev, current) => (prev.distance < current.distance) ? prev : current)
+        console.log("closetTarget: " + JSON.stringify(closetTarget));
+        // move to this target
+        moveAI(b, closetTarget.id)
+      }
+    })
   }
+  sendTargetToServer();
+}
 
+function randomPos() {
+  pos = {
+    x: getRndInteger(0, width),
+    y: getRndInteger(0, height)
+  }
+  target = {
+    x: getRndInteger(0, width),
+    y: getRndInteger(0, height)
+  }
+}
+
+function moveAI(id, targetId) {
+  let ai = players.get(id)
+  console.log("ai.pos.x: " + ai.pos.x + ", targetId: " + targetId);
+  generateTarget(ai.pos, targetId)
+  players.set(id, {pos: ai.pos, target: target})
+}
+
+function generateTarget(pos, targetId) {
+  let clientTarget = players.get(targetId) ? players.get(targetId) : {pos: {x: width / 2, y: height / 2}, target: {x: width / 2, y: height / 2}}
+  let tx = getRndInteger(pos.x, pos.x + (clientTarget.pos.x - pos.x) * AI_SPEED)
+  let ty = getRndInteger(pos.y, pos.y + (clientTarget.pos.y - pos.y) * AI_SPEED)
+  target = {x: tx, y: ty}
+}
+
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
 }
 
 function mouseClicked() {
   setTarget(mouseX, mouseY);
+  generateTarget({x: mouseX, y: mouseX})
   console.log("click: : " + mouseX + ", " + mouseY);
   sendTargetToServer();
 
@@ -93116,11 +93191,7 @@ serverConnection.onopen = function () {
 
 serverConnection.onmessage = function (event) {
   let obj = JSON.parse(event.data);
-  console.log("Received msg data: " + JSON.stringify(obj));
   players = new Map(Object.entries(obj))
-  let objectVersion = Object.fromEntries(players)
-  console.log("objectVersion " + objectVersion);
-  console.log("players " + players.size);
 }
 
 function generateUUID() { // Public Domain/MIT
