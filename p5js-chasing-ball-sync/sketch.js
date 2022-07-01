@@ -106,7 +106,7 @@ function sendTargetToServer() {
 
 
 // WEBSOCKET STUFF
-const serverAddress = "ws://192.168.1.102:5000";
+const serverAddress = "ws://localhost:5000";
 
 const serverConnection = new WebSocket(serverAddress);
 
