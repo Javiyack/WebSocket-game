@@ -1,3 +1,177 @@
+
+// Global parameters
+const EASING_SPEED = 0.05;
+const AI_SPEED = 0.25;
+const AI_ID = "AI_ID"
+const clientId = generateUUID();
+const aiId = AI_ID;
+
+let level = 2;
+const bots = [...Array(level).keys()].map(i => `${AI_ID}_${i}`)
+
+let aiDistance = 1000
+let targetId = aiId;
+
+
+// Current ball postion
+let pos = {
+  x: 0,
+  y: 0
+};
+
+// Target ball position
+let target = {
+  x: 0,
+  y: 0
+};
+
+let players
+
+function setup() {
+  createCanvas(480, 320);
+  background(0);
+  noStroke();
+  setAI();
+}
+
+function setAI() {
+  players = new Map(bots.map(b => {
+    randomPos()
+    return [b, {pos: pos, target: target}]
+  }))
+}
+
+
+function draw() {
+  // background(220);
+  aiDistance = 1000
+  let keys = Object.keys(Object.fromEntries(players))
+  console.log("Players: " + keys.length);
+  console.log("Bots: " + bots.length);
+  if (!!keys.length) {
+    keys.forEach(key => {
+      let player = players.get(key)
+      let wayLeft = Math.sqrt(Math.pow(player.pos.x - player.target.x, 2) + Math.pow(player.pos.y - player.target.y, 2))
+      console.log("wayLeft: " + wayLeft);
+      if (wayLeft > 1) {
+        if (bots.includes(key)) console.log("aiDistance: " + aiDistance);
+        fill(0, 25);
+        rect(0, 0, width, height);
+        fill(255);
+        // Ease position into target
+        let newPosX = player.pos.x + EASING_SPEED * (player.target.x - player.pos.x);
+        let newPosY = player.pos.y + EASING_SPEED * (player.target.y - player.pos.y);
+        players.set(key, {pos: {x: newPosX, y: newPosY}, target: player.target})
+      }
+      circle(player.pos.x, player.pos.y, 20);
+    })
+    bots.forEach(b => {
+      // calculates all the distances and find the closest target
+      console.log("calculates all the distances and find the closest target");
+      const allTargetsId = keys.filter(key => !bots.includes(key))
+      console.log("allTargetsId: " + allTargetsId);
+      if (allTargetsId.length > 0) {
+        const distances = allTargetsId.map(key => {
+          let player = players.get(key)
+          return {
+            distance: Math.sqrt(Math.pow(player.pos.x - players.get(b).pos.x, 2) + Math.pow(player.pos.y - players.get(b).pos.y, 2)),
+            id: key
+          }
+        }
+        )
+        console.log("distances: " + JSON.stringify(distances));
+        const closetTarget = distances.reduce((prev, current) => (prev.distance < current.distance) ? prev : current)
+        console.log("closetTarget: " + JSON.stringify(closetTarget));
+        // move to this target
+        moveAI(b, closetTarget.id)
+      }
+    })
+  }
+  sendTargetToServer();
+}
+
+function randomPos() {
+  pos = {
+    x: getRndInteger(0, width),
+    y: getRndInteger(0, height)
+  }
+  target = {
+    x: getRndInteger(0, width),
+    y: getRndInteger(0, height)
+  }
+}
+
+function moveAI(id, targetId) {
+  let ai = players.get(id)
+  console.log("ai.pos.x: " + ai.pos.x + ", targetId: " + targetId);
+  generateTarget(ai.pos, targetId)
+  players.set(id, {pos: ai.pos, target: target})
+}
+
+function generateTarget(pos, targetId) {
+  let clientTarget = players.get(targetId) ? players.get(targetId) : {pos: {x: width / 2, y: height / 2}, target: {x: width / 2, y: height / 2}}
+  let tx = getRndInteger(pos.x, pos.x + (clientTarget.pos.x - pos.x) * AI_SPEED)
+  let ty = getRndInteger(pos.y, pos.y + (clientTarget.pos.y - pos.y) * AI_SPEED)
+  target = {x: tx, y: ty}
+}
+
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+function mouseClicked() {
+  setTarget(mouseX, mouseY);
+  generateTarget({x: mouseX, y: mouseX})
+  console.log("click: : " + mouseX + ", " + mouseY);
+  sendTargetToServer();
+
+  // console.log("New target is: ");
+  // console.log(target);
+}
+
+function setTarget(tx, ty) {
+  let player = players.get(clientId) ? players.get(clientId) : {pos: {x: tx, y: ty}, target: {x: tx, y: ty}}
+  players.set(clientId, {pos: player.pos, target: {x: tx, y: ty}})
+}
+
+function sendTargetToServer() {
+  let norm = Object.fromEntries(players)
+  let str = JSON.stringify(norm);
+  serverConnection.send(str);
+}
+
+
+// WEBSOCKET STUFF
+const serverAddress = "ws://localhost:5000";
+
+const serverConnection = new WebSocket(serverAddress);
+
+serverConnection.onopen = function () {
+  console.log("I just connected to the server on " + serverAddress);
+}
+
+serverConnection.onmessage = function (event) {
+  let obj = JSON.parse(event.data);
+  players = new Map(Object.entries(obj))
+}
+
+function generateUUID() { // Public Domain/MIT
+  var d = new Date().getTime();//Timestamp
+  var d2 = ((typeof performance !== 'undefined') && performance.now && (performance.now() * 1000)) || 0;//Time in microseconds since page-load or 0 if unsupported
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16;//random number between 0 and 16
+    if (d > 0) {//Use timestamp until depleted
+      r = (d + r) % 16 | 0;
+      d = Math.floor(d / 16);
+    } else {//Use microseconds since page-load if supported
+      r = (d2 + r) % 16 | 0;
+      d2 = Math.floor(d2 / 16);
+    }
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+
 /*! p5.js v1.1.9 July 22, 2020 */
 (function (f) {
   if (typeof exports === 'object' && typeof module !== 'undefined') {
@@ -93037,179 +93211,3 @@
     [38]
   )(38);
 });
-
-// Global parameters
-const EASING_SPEED = 0.05;
-const AI_SPEED = 0.25;
-const AI_ID = "AI_ID"
-const clientId = generateUUID();
-const aiId = AI_ID;
-
-let level = 2;
-const bots = [...Array(level).keys()].map(i => `${AI_ID}_${i}`)
-
-let aiDistance = 1000
-let targetId = aiId;
-
-
-// Current ball postion
-let pos = {
-  x: 0,
-  y: 0
-};
-
-// Target ball position
-let target = {
-  x: 0,
-  y: 0
-};
-
-let players
-
-function setup() {
-  createCanvas(480, 320);
-  background(0);
-  noStroke();
-  setAI();
-}
-
-function setAI() {
-  players = new Map(bots.map(b => {
-    randomPos()
-    return [b, {pos: pos, target: target}]
-  }))
-}
-
-
-function draw() {
-  // background(220);
-  aiDistance = 1000
-  let keys = Object.keys(Object.fromEntries(players))
-  console.log("Players: " + keys.length);
-  console.log("Bots: " + bots.length);
-  if (!!keys.length) {
-    keys.forEach(key => {
-      let player = players.get(key)
-      let wayLeft = Math.sqrt(Math.pow(player.pos.x - player.target.x, 2) + Math.pow(player.pos.y - player.target.y, 2))
-      console.log("wayLeft: " + wayLeft);
-      if (wayLeft > 1) {
-        if (bots.includes(key)) console.log("aiDistance: " + aiDistance);
-        fill(0, 25);
-        rect(0, 0, width, height);
-        fill(255);
-        // Ease position into target
-        let newPosX = player.pos.x + EASING_SPEED * (player.target.x - player.pos.x);
-        let newPosY = player.pos.y + EASING_SPEED * (player.target.y - player.pos.y);
-        players.set(key, {pos: {x: newPosX, y: newPosY}, target: player.target})
-      }
-      circle(player.pos.x, player.pos.y, 20);
-    })
-    bots.forEach(b => {
-      // calculates all the distances and find the closest target
-      console.log("calculates all the distances and find the closest target");
-      const allTargetsId = keys.filter(key => !bots.includes(key))
-      console.log("allTargetsId: " + allTargetsId);
-      if (allTargetsId.length > 0) {
-        const distances = allTargetsId.map(key => {
-          let player = players.get(key)
-          return {
-            distance: Math.sqrt(Math.pow(player.pos.x - players.get(b).pos.x, 2) + Math.pow(player.pos.y - players.get(b).pos.y, 2)),
-            id: key
-          }
-        }
-        )
-        console.log("distances: " + JSON.stringify(distances));
-        const closetTarget = distances.reduce((prev, current) => (prev.distance < current.distance) ? prev : current)
-        console.log("closetTarget: " + JSON.stringify(closetTarget));
-        // move to this target
-        moveAI(b, closetTarget.id)
-      }
-    })
-  }
-  sendTargetToServer();
-}
-
-function randomPos() {
-  pos = {
-    x: getRndInteger(0, width),
-    y: getRndInteger(0, height)
-  }
-  target = {
-    x: getRndInteger(0, width),
-    y: getRndInteger(0, height)
-  }
-}
-
-function moveAI(id, targetId) {
-  let ai = players.get(id)
-  console.log("ai.pos.x: " + ai.pos.x + ", targetId: " + targetId);
-  generateTarget(ai.pos, targetId)
-  players.set(id, {pos: ai.pos, target: target})
-}
-
-function generateTarget(pos, targetId) {
-  let clientTarget = players.get(targetId) ? players.get(targetId) : {pos: {x: width / 2, y: height / 2}, target: {x: width / 2, y: height / 2}}
-  let tx = getRndInteger(pos.x, pos.x + (clientTarget.pos.x - pos.x) * AI_SPEED)
-  let ty = getRndInteger(pos.y, pos.y + (clientTarget.pos.y - pos.y) * AI_SPEED)
-  target = {x: tx, y: ty}
-}
-
-function getRndInteger(min, max) {
-  return Math.floor(Math.random() * (max - min)) + min;
-}
-
-function mouseClicked() {
-  setTarget(mouseX, mouseY);
-  generateTarget({x: mouseX, y: mouseX})
-  console.log("click: : " + mouseX + ", " + mouseY);
-  sendTargetToServer();
-
-  // console.log("New target is: ");
-  // console.log(target);
-}
-
-function setTarget(tx, ty) {
-  let player = players.get(clientId) ? players.get(clientId) : {pos: {x: tx, y: ty}, target: {x: tx, y: ty}}
-  players.set(clientId, {pos: player.pos, target: {x: tx, y: ty}})
-}
-
-function sendTargetToServer() {
-  let norm = Object.fromEntries(players)
-  let str = JSON.stringify(norm);
-  serverConnection.send(str);
-}
-
-
-// WEBSOCKET STUFF
-const serverAddress = "ws://localhost:5000";
-
-const serverConnection = new WebSocket(serverAddress);
-
-serverConnection.onopen = function () {
-  console.log("I just connected to the server on " + serverAddress);
-}
-
-serverConnection.onmessage = function (event) {
-  let obj = JSON.parse(event.data);
-  players = new Map(Object.entries(obj))
-}
-
-function generateUUID() { // Public Domain/MIT
-  var d = new Date().getTime();//Timestamp
-  var d2 = ((typeof performance !== 'undefined') && performance.now && (performance.now() * 1000)) || 0;//Time in microseconds since page-load or 0 if unsupported
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    var r = Math.random() * 16;//random number between 0 and 16
-    if (d > 0) {//Use timestamp until depleted
-      r = (d + r) % 16 | 0;
-      d = Math.floor(d / 16);
-    } else {//Use microseconds since page-load if supported
-      r = (d2 + r) % 16 | 0;
-      d2 = Math.floor(d2 / 16);
-    }
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-}
-
-
-
-
