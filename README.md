@@ -1,19 +1,19 @@
 # WebSocket Game
 ## ECO server
+- Go to node-server-eco folder
 - Open terminal, bash or any 
 - Install ws
 ```
 npm i ws
 ```
-- Go to node-server-eco folder
 - Launch the server
 ```
 npm run start 
 ```
 ## App server
-- Install http-server
+- Install http-server globally
 ```
-npm i http-server
+npm i http-server -g
 ```
 - Go to p5js-chasing-ball-sync folder
 - Launch the App Server
