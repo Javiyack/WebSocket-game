@@ -10,7 +10,7 @@ const MAX_SIZE = 40;
 const MAX_MASE = 40;
 const EASING_SPEED = 0.05;
 const TIME_INCREMENT = 0.0000000001;
-const G = 0.0000000000667;
+const G = 0.0000000001667;
 const clientId = generateUUID();
 
 /*

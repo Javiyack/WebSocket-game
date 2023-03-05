@@ -1,24 +1,31 @@
 # WebSocket Game
-## ECO server
 - Open terminal, bash or any 
+## ECO server
+- Go to node-server-eco folder
 - Install ws
 ```
 npm i ws
 ```
-- Go to node-server-eco folder
 - Launch the server
 ```
 npm run start 
 ```
-## App server
+## App server 
+- Go to p5js-chasing-ball-sync folder
 - Install http-server
 ```
-npm i http-server
+npm install --save-dev http-server
 ```
-- Go to p5js-chasing-ball-sync folder
+- Add this to your package.json
+```
+"scripts": {
+        "start": "http-server ."
+    }
+```
+
 - Launch the App Server
 ```
-http-server
+npm start
 ```
 Now you have a runing http-server runing at http://localhost:8080.
 You can conect as client to it from any web browser.
